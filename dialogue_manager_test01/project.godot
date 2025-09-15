@@ -11,13 +11,14 @@ config_version=5
 [application]
 
 config/name="dialogue_manager_test01"
-run/main_scene="uid://ugd552efvil0"
+run/main_scene="uid://cr0jasuwk6d08"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
 DialogueManager="*res://addons/dialogue_manager/dialogue_manager.gd"
+SocialDNAManager="*res://scripts/SocialDNAManager.gd"
 
 [editor_plugins]
 
