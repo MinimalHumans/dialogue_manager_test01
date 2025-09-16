@@ -1,21 +1,21 @@
 class_name DialogueTemplateSelector
 extends RefCounted
 
-# Template data structure
+# Template data structure with clear compatibility indicators
 var dialogue_templates = {
 	SocialDNAManager.NPCArchetype.AUTHORITY: [
-		"State your business in my {LOCATION_TYPE}.",
-		"I don't have time for pleasantries. What do you need?",
-		"You'd better have a good reason for interrupting me.",
-		"Make it quick - I have responsibilities to attend to.",
-		"I hope you're not here to waste my time."
+		"[INCOMPATIBLE] What do you want? Make it quick - I don't have time for people like you in my {LOCATION_TYPE}.",
+		"[INCOMPATIBLE] You're interrupting important work. State your business and leave.",
+		"[NEUTRAL] State your business in my {LOCATION_TYPE}. I have responsibilities to attend to.",
+		"[COMPATIBLE] You look like someone who gets things done. What brings you to my {LOCATION_TYPE}?",
+		"[COMPATIBLE] I respect efficiency. How can I assist someone of your caliber today?"
 	],
 	SocialDNAManager.NPCArchetype.INTELLECTUAL: [
-		"Interesting ship configuration you have there.",
-		"I'm curious about your perspective on the recent developments in {LOCATION_TYPE}.",
-		"Have you given any thought to the implications of current events?",
-		"I find it fascinating how different people approach the same problems.",
-		"Your arrival timing is quite fortuitous for my research."
+		"[INCOMPATIBLE] I'm far too busy with important research to deal with interruptions in my {LOCATION_TYPE}.",
+		"[INCOMPATIBLE] Unless you have something intellectually stimulating to discuss, please move along.",
+		"[NEUTRAL] I'm curious about your perspective on the recent developments in {LOCATION_TYPE}.",
+		"[COMPATIBLE] Fascinating! Someone with your social approach must have interesting insights to share.",
+		"[COMPATIBLE] Excellent timing! I've been hoping to discuss current events with someone of your intellectual bearing."
 	]
 }
 
@@ -28,17 +28,26 @@ func select_template(archetype: SocialDNAManager.NPCArchetype, compatibility: fl
 	var template_index: int
 	
 	# Use compatibility to influence template selection
-	if compatibility >= 0.5:
-		# High compatibility - use more welcoming templates (later in array)
-		template_index = randi_range(2, templates.size() - 1)
-	elif compatibility >= -0.5:
-		# Neutral compatibility - use middle templates
-		template_index = randi_range(1, 3)
+	if compatibility >= 0.8:
+		# Very high compatibility - use most welcoming templates
+		template_index = 4
+	elif compatibility >= 0.3:
+		# Good compatibility - use friendly templates  
+		template_index = randi_range(3, 4)
+	elif compatibility >= -0.3:
+		# Neutral compatibility - use neutral template
+		template_index = 2
+	elif compatibility >= -0.8:
+		# Poor compatibility - use dismissive templates
+		template_index = randi_range(0, 1)
 	else:
-		# Low compatibility - use more hostile templates (earlier in array)
-		template_index = randi_range(0, 2)
+		# Very poor compatibility - use most hostile template
+		template_index = 0
 	
-	return templates[template_index]
+	var selected_template = templates[template_index]
+	print("Selected template %d for %s (compatibility: %.2f): %s" % [template_index, SocialDNAManager.get_archetype_name(archetype), compatibility, selected_template])
+	
+	return selected_template
 
 # Substitute variables in template
 func substitute_variables(template: String) -> String:

@@ -1,4 +1,4 @@
-extends Area2D  # Changed from CharacterBody2D
+extends Area2D
 class_name SocialDialogueNPC
 
 @export var npc_name: String = "Unknown NPC"
@@ -13,6 +13,10 @@ var info_label: Label
 
 func _ready():
 	template_selector = DialogueTemplateSelector.new()
+	
+	# Fix ColorRect blocking input (if it exists)
+	if has_node("ColorRect"):
+		$ColorRect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
 	# Connect input event signal for Area2D
 	input_event.connect(_on_input_event)
@@ -57,7 +61,7 @@ func start_dialogue():
 	# Show dialogue using Dialogue Manager
 	DialogueManager.show_dialogue_balloon(current_dialogue_resource)
 
-# Optional: Method to recalculate compatibility if player Social DNA changes
+# Method to recalculate compatibility if player Social DNA changes
 func update_compatibility():
 	compatibility = SocialDNAManager.calculate_compatibility(archetype)
 	if info_label:

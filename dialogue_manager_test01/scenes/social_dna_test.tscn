@@ -26,11 +26,11 @@ layout_mode = 2
 text = "Click on NPCs to start dialogue. Compatibility affects dialogue selection."
 
 [node name="CommanderSteel" parent="." instance=ExtResource("1_wg5c1")]
-position = Vector2(200, 500)
+position = Vector2(710, 142)
 npc_name = "Commander Steel"
 
 [node name="Dr_Vega" parent="." instance=ExtResource("1_wg5c1")]
 modulate = Color(0.239902, 0.526243, 0.458502, 1)
-position = Vector2(400, 500)
-npc_name = "Dr. Vega"
+position = Vector2(910, 138)
+npc_name = null
 archetype = 1
