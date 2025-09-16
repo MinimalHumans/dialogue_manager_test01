@@ -20,6 +20,10 @@ var conversation_context: Dictionary = {}  # Stores info revealed during convers
 var relationship_tracker: RelationshipTracker
 var conversation_topics: ConversationTopics
 
+# Variables that the dialogue system will set
+var advance_turn: bool = false
+var player_choice: int = -1
+
 func _init():
 	relationship_tracker = RelationshipTracker.new()
 	conversation_topics = ConversationTopics.new()
@@ -53,6 +57,10 @@ func select_topic(topic_id: String):
 		social_choices_made.clear()
 		conversation_context.clear()
 		
+		# Reset dialogue variables
+		advance_turn = false
+		player_choice = -1
+		
 		conversation_started.emit(topic_id)
 		
 		# Generate first turn
@@ -63,20 +71,24 @@ func select_topic(topic_id: String):
 
 # Generate dialogue for current turn
 func _generate_turn_dialogue() -> DialogueResource:
+	print("=== GENERATING TURN %d DIALOGUE ===" % current_turn)
+	
 	var topic_data = conversation_topics.get_topic_data(current_topic, current_npc_archetype)
 	var relationship = relationship_tracker.get_relationship(current_npc_name)
 	
 	if not topic_data:
-		print("Topic data not found for: %s" % current_topic)
+		print("ERROR: Topic data not found for: %s" % current_topic)
 		return null
 	
 	# Get current turn data
 	var turn_data = topic_data.turns[current_turn - 1] if current_turn <= topic_data.turns.size() else null
 	if not turn_data:
-		print("Turn %d not found for topic %s" % [current_turn, current_topic])
+		print("ERROR: Turn %d not found for topic %s" % [current_turn, current_topic])
 		return null
 	
 	var dialogue_text = ""
+	
+	print("Generating turn %d for topic %s with NPC %s" % [current_turn, current_topic, current_npc_name])
 	
 	match current_turn:
 		1:
@@ -96,6 +108,8 @@ func _generate_turn_dialogue() -> DialogueResource:
 			dialogue_text = _generate_turn_5_dialogue(turn_data, relationship)
 	
 	print("Generated turn %d dialogue for %s - %s" % [current_turn, current_npc_name, current_topic])
+	print("Dialogue length: %d characters" % dialogue_text.length())
+	print("========================================")
 	return DialogueManager.create_resource_from_text(dialogue_text)
 
 # Generate Turn 1: NPC Opening
@@ -114,11 +128,13 @@ func _generate_turn_1_dialogue(turn_data: Dictionary, relationship: Relationship
 	
 	var opening_text = turn_data.npc_openings.get(opening_key, turn_data.npc_openings["default"])
 	
+	print("Turn 1: Using opening key '%s' with text: %s" % [opening_key, opening_text])
+	
 	return """
 ~ start
 %s: %s
 - Continue
-	set ConversationManager.advance_turn = true
+	do conversation_manager.set_advance_turn()
 	=> END
 """ % [current_npc_name, opening_text]
 
@@ -130,25 +146,33 @@ func _generate_turn_2_dialogue(turn_data: Dictionary) -> String:
 """ % current_npc_name
 	
 	# Add player response options
+	print("Generating %d response options for turn 2:" % turn_data.player_responses.size())
 	for response in turn_data.player_responses:
 		var social_type = response.social_type as int
+		print("  - %s: %s (social_type: %d)" % [response.label, response.text, social_type])
 		dialogue_text += """
 - [%s] %s
-	set ConversationManager.player_choice = %d
-	set ConversationManager.advance_turn = true
+	do conversation_manager.set_player_choice_and_advance(%d)
 	=> END
 """ % [response.label, response.text, social_type]
 	
+	print("Turn 2 dialogue generated with method calls")
 	return dialogue_text
 
 # Generate Turn 3: NPC Reaction + Compatibility Check
 func _generate_turn_3_dialogue(turn_data: Dictionary, relationship: RelationshipTracker.NPCRelationship) -> String:
+	print("=== GENERATING TURN 3 ===")
+	print("social_choices_made.size(): %d" % social_choices_made.size())
+	print("social_choices_made: %s" % social_choices_made)
+	
 	if social_choices_made.size() == 0:
-		print("Error: No social choice recorded for turn 3")
+		print("ERROR: No social choice recorded for turn 3!")
 		return _generate_error_dialogue()
 	
 	var last_choice = social_choices_made[-1]
 	var compatibility = SocialDNAManager.calculate_compatibility(current_npc_archetype)
+	
+	print("Last choice: %s, Compatibility: %.2f" % [SocialDNAManager.get_social_type_name(last_choice), compatibility])
 	
 	# Compatibility gate check
 	if compatibility < -0.8:  # Very low compatibility
@@ -177,12 +201,15 @@ func _generate_turn_3_dialogue(turn_data: Dictionary, relationship: Relationship
 		info_reveal = turn_data.low_compat_info
 		conversation_context["info_level"] = "low"
 	
+	print("Reaction key: %s, Info level: %s" % [reaction_key, conversation_context["info_level"]])
+	print("========================")
+	
 	return """
 ~ start
 %s: %s
 %s
 - Continue
-	set ConversationManager.advance_turn = true
+	do conversation_manager.set_advance_turn()
 	=> END
 """ % [current_npc_name, reaction, info_reveal]
 
@@ -201,8 +228,7 @@ func _generate_turn_4_dialogue(turn_data: Dictionary) -> String:
 		var social_type = response.social_type as int
 		dialogue_text += """
 - [%s] %s
-	set ConversationManager.player_choice = %d
-	set ConversationManager.advance_turn = true
+	do conversation_manager.set_player_choice_and_advance(%d)
 	=> END
 """ % [response.label, response.text, social_type]
 	
@@ -289,11 +315,36 @@ System: An error occurred in the conversation system.
 
 # Process turn advancement and player choices (called by dialogue system)
 func process_conversation_state():
-	# This will be called after dialogue ends to process variables set by dialogue system
-	if conversation_active and current_turn < 5:
-		current_turn += 1
-		return _generate_turn_dialogue()
+	print("process_conversation_state called - Turn: %d, player_choice: %d, advance_turn: %s" % [current_turn, player_choice, advance_turn])
+	
+	# Check if a player choice was made and process it
+	if player_choice >= 0:
+		print("Processing player choice from dialogue: %d" % player_choice)
+		record_player_choice(player_choice)
+		player_choice = -1  # Reset after processing
+	
+	# Check if we should advance to the next turn
+	if advance_turn:
+		print("Advancing turn from %d to %d" % [current_turn, current_turn + 1])
+		advance_turn = false  # Reset flag
+		
+		if conversation_active and current_turn < 5:
+			current_turn += 1
+			return _generate_turn_dialogue()
+		else:
+			print("Conversation finished or turn limit reached")
+	
 	return null
+
+# Methods that can be called from dialogue mutations
+func set_advance_turn():
+	advance_turn = true
+	print("set_advance_turn() called - advance_turn is now true")
+
+func set_player_choice_and_advance(choice: int):
+	player_choice = choice
+	advance_turn = true
+	print("set_player_choice_and_advance(%d) called - player_choice: %d, advance_turn: true" % [choice, choice])
 
 # Handle player choice (called by dialogue system)
 func record_player_choice(choice_value: int):
@@ -303,7 +354,8 @@ func record_player_choice(choice_value: int):
 	# Process Social DNA change
 	SocialDNAManager.process_dialogue_choice(social_type)
 	
-	print("Recorded player choice: %s (Total choices: %d)" % [
-		SocialDNAManager.get_social_type_name(social_type),
-		social_choices_made.size()
-	])
+	print("=== CHOICE RECORDED ===")
+	print("Recorded player choice: %s (value: %d)" % [SocialDNAManager.get_social_type_name(social_type), choice_value])
+	print("Total choices made: %d" % social_choices_made.size())
+	print("social_choices_made array: %s" % social_choices_made)
+	print("=======================")

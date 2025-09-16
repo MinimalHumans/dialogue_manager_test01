@@ -14,6 +14,7 @@ var interactions_count: int = 0
 # UI elements for testing
 var info_label: Label
 var topic_selection_ui: Control
+var topic_ui_active: bool = false  # Track if topic UI is active
 
 func _ready():
 	template_selector = DialogueTemplateSelector.new()
@@ -81,6 +82,10 @@ func update_info_label():
 		info_label.modulate = trust_color
 
 func _on_input_event(viewport, event, shape_idx):
+	# Don't process input if topic UI is active
+	if topic_ui_active:
+		return
+		
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			# Left click: Start simple conversation or continue existing conversation system
@@ -109,6 +114,15 @@ func start_dialogue():
 
 func start_topic_conversation():
 	print("Starting topic-based conversation with %s" % npc_name)
+	
+	# Reset conversation state if it's stuck
+	if conversation_manager.conversation_active:
+		print("WARNING: Conversation was still marked as active - resetting state")
+		conversation_manager.conversation_active = false
+		conversation_manager.current_turn = 0
+		conversation_manager.advance_turn = false
+		conversation_manager.player_choice = -1
+	
 	conversation_manager.start_conversation(npc_name, archetype)
 
 func _on_topic_selection_required(available_topics: Array):
@@ -120,56 +134,141 @@ func show_topic_selection_ui(available_topics: Array):
 	if topic_selection_ui:
 		topic_selection_ui.queue_free()
 	
+	# Set flag to disable Area2D input while UI is active
+	topic_ui_active = true
+	
+	# Create a CanvasLayer to ensure UI is on top
+	var canvas_layer = CanvasLayer.new()
+	canvas_layer.layer = 100  # High layer to ensure it's on top
+	
 	# Create topic selection UI
 	topic_selection_ui = Control.new()
 	topic_selection_ui.name = "TopicSelectionUI"
+	topic_selection_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	topic_selection_ui.mouse_filter = Control.MOUSE_FILTER_STOP  # Ensure it captures mouse events
 	
-	# Create background panel
+	# Create semi-transparent background that covers the whole screen
+	var background = ColorRect.new()
+	background.color = Color(0, 0, 0, 0.5)  # Semi-transparent black
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.mouse_filter = Control.MOUSE_FILTER_STOP  # Block clicks to elements below
+	topic_selection_ui.add_child(background)
+	
+	# Create main panel
 	var panel = Panel.new()
-	panel.size = Vector2(400, 300)
-	panel.position = Vector2(-200, -150)  # Center on NPC
+	panel.size = Vector2(450, 350)  # Made it a bit larger
+	# Position panel at the center of the screen
+	panel.position = Vector2(
+		(get_viewport().size.x - panel.size.x) * 0.5,
+		(get_viewport().size.y - panel.size.y) * 0.5
+	)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	topic_selection_ui.add_child(panel)
 	
-	# Create VBox for layout
+	# Create VBox for layout with margins
+	var margin_container = MarginContainer.new()
+	margin_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin_container.add_theme_constant_override("margin_left", 15)
+	margin_container.add_theme_constant_override("margin_right", 15)
+	margin_container.add_theme_constant_override("margin_top", 15)
+	margin_container.add_theme_constant_override("margin_bottom", 15)
+	panel.add_child(margin_container)
+	
 	var vbox = VBoxContainer.new()
-	vbox.position = Vector2(10, 10)
-	vbox.size = Vector2(380, 280)
-	panel.add_child(vbox)
+	vbox.add_theme_constant_override("separation", 8)
+	margin_container.add_child(vbox)
 	
 	# Title label
 	var title_label = Label.new()
 	title_label.text = "Conversation Topics - %s" % npc_name
-	title_label.add_theme_font_size_override("font_size", 14)
+	title_label.add_theme_font_size_override("font_size", 16)
+	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title_label)
 	
+	# Add separator
+	var separator = HSeparator.new()
+	vbox.add_child(separator)
+	
 	# Add topic buttons
+	var button_count = 0
 	for topic in available_topics:
 		var button = Button.new()
 		var status_indicator = "●" if topic.is_new else ("!" if topic.has_failed else "○")
 		var status_text = " [New]" if topic.is_new else (" [Failed - Retry]" if topic.has_failed else " [Discussed]")
 		
 		button.text = "%s %s%s" % [status_indicator, topic.name, status_text]
-		button.pressed.connect(_on_topic_selected.bind(topic.id))
+		button.custom_minimum_size.y = 40  # Taller buttons
+		button.mouse_filter = Control.MOUSE_FILTER_STOP
+		
+		# Store topic_id in button metadata for reliable access
+		button.set_meta("topic_id", topic.id)
+		button.pressed.connect(_on_topic_button_pressed.bind(button))
+		
 		vbox.add_child(button)
+		button_count += 1
+		
+		print("Added topic button %d: %s (topic_id: %s)" % [button_count, topic.name, topic.id])
+	
+	# Add separator before cancel
+	var separator2 = HSeparator.new()
+	vbox.add_child(separator2)
 	
 	# Cancel button
 	var cancel_button = Button.new()
 	cancel_button.text = "Cancel"
+	cancel_button.custom_minimum_size.y = 40
+	cancel_button.mouse_filter = Control.MOUSE_FILTER_STOP
 	cancel_button.pressed.connect(_on_topic_selection_cancelled)
 	vbox.add_child(cancel_button)
 	
-	# Add to scene
-	add_child(topic_selection_ui)
+	# Add the UI to the canvas layer, then add canvas layer to scene
+	canvas_layer.add_child(topic_selection_ui)
+	get_tree().current_scene.add_child(canvas_layer)
 	
-	print("Showing topic selection UI with %d topics" % available_topics.size())
+	# Store reference to canvas layer so we can clean it up
+	topic_selection_ui.set_meta("canvas_layer", canvas_layer)
+	
+	print("Showing topic selection UI with %d topics on CanvasLayer %d" % [available_topics.size(), canvas_layer.layer])
+	print("UI created with mouse_filter STOP on all interactive elements")
 
+func _on_topic_button_pressed(button: Button):
+	var topic_id = button.get_meta("topic_id")
+	print("Topic button pressed: %s (topic_id: %s)" % [button.text, topic_id])
+	
+	# Remove topic selection UI and re-enable Area2D input
+	_close_topic_ui()
+	
+	# Make this conversation manager instance available to Dialogue Manager
+	# Clear any previous conversation managers and add the current one
+	for i in range(DialogueManager.game_states.size() - 1, -1, -1):
+		var state = DialogueManager.game_states[i]
+		if state is ConversationManager or (typeof(state) == TYPE_DICTIONARY and state.has("conversation_manager")):
+			DialogueManager.game_states.remove_at(i)
+			print("Removed old conversation manager from game_states")
+	
+	# Add the current conversation manager
+	DialogueManager.game_states.append(conversation_manager)
+	print("Added current conversation_manager to DialogueManager game_states")
+	print("DialogueManager.game_states now has %d items" % DialogueManager.game_states.size())
+	
+	# Start the conversation with selected topic
+	var dialogue_resource = conversation_manager.select_topic(topic_id)
+	if dialogue_resource:
+		current_dialogue_resource = dialogue_resource
+		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+
+# Keep the old function for compatibility
 func _on_topic_selected(topic_id: String):
 	print("Topic selected: %s" % topic_id)
 	
-	# Remove topic selection UI
-	if topic_selection_ui:
-		topic_selection_ui.queue_free()
-		topic_selection_ui = null
+	# Remove topic selection UI and re-enable Area2D input
+	_close_topic_ui()
+	
+	# Make this conversation manager instance available to Dialogue Manager
+	# so the dialogue can access its variables
+	if not DialogueManager.game_states.has(conversation_manager):
+		DialogueManager.game_states.append(conversation_manager)
+		print("Added conversation_manager to DialogueManager game_states")
 	
 	# Start the conversation with selected topic
 	var dialogue_resource = conversation_manager.select_topic(topic_id)
@@ -178,12 +277,21 @@ func _on_topic_selected(topic_id: String):
 		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
 
 func _on_topic_selection_cancelled():
-	print("Topic selection cancelled")
-	
-	# Remove topic selection UI
+	print("Topic selection cancelled - Cancel button was clicked")
+	_close_topic_ui()
+
+func _close_topic_ui():
+	# Remove topic selection UI and its canvas layer, then re-enable Area2D input
 	if topic_selection_ui:
-		topic_selection_ui.queue_free()
+		var canvas_layer = topic_selection_ui.get_meta("canvas_layer", null)
+		if canvas_layer:
+			canvas_layer.queue_free()  # This will free the canvas layer and all its children
+		else:
+			topic_selection_ui.queue_free()  # Fallback if no canvas layer
 		topic_selection_ui = null
+	
+	topic_ui_active = false
+	print("Topic UI closed and Area2D input re-enabled")
 
 func _on_conversation_started(topic: String):
 	print("Phase 3 conversation started: %s with %s" % [topic, npc_name])
@@ -207,19 +315,28 @@ func _on_compatibility_failed(failed_npc_name: String):
 		flash_color(Color.RED)
 
 func _on_dialogue_ended(resource):
+	print("Dialogue ended for %s" % npc_name)
+	
 	# Process any choice that was made during dialogue
 	if use_progressive_dialogue:
 		# Check if we're in a Phase 3 conversation
 		if conversation_manager.conversation_active:
+			print("Phase 3 conversation active, processing conversation state...")
 			# Handle Phase 3 conversation advancement
 			var next_dialogue = conversation_manager.process_conversation_state()
 			if next_dialogue:
+				print("Generated next dialogue, showing after brief delay...")
 				current_dialogue_resource = next_dialogue
 				# Small delay before showing next turn
 				await get_tree().create_timer(0.5).timeout
 				DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+			else:
+				print("No more dialogue - conversation completed or error occurred")
+				# Update relationship display after conversation ends
+				update_info_label()
 		else:
 			# Handle Phase 2 simple conversation
+			print("Phase 2 simple dialogue ended, processing last choice...")
 			SocialDNAManager.process_last_choice()
 			print("Simple dialogue ended, processed last choice")
 
