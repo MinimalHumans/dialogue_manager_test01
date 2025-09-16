@@ -2,9 +2,18 @@ extends Node2D
 
 @onready var player_stats_label = $CanvasLayer/VBoxContainer/PlayerStatsLabel
 @onready var profile_dropdown = $CanvasLayer/VBoxContainer/ProfileDropdown
+@onready var phase_toggle_button = $CanvasLayer/VBoxContainer/PhaseToggleButton
+@onready var progression_label = $CanvasLayer/VBoxContainer/ProgressionLabel
 
 # Define test profiles
 var test_profiles = {
+	"Phase 2 Starting Profile": {
+		SocialDNAManager.SocialType.AGGRESSIVE: 10,
+		SocialDNAManager.SocialType.DIPLOMATIC: 10,
+		SocialDNAManager.SocialType.CHARMING: 10,
+		SocialDNAManager.SocialType.DIRECT: 10,
+		SocialDNAManager.SocialType.EMPATHETIC: 10
+	},
 	"Default (Phase 1)": {
 		SocialDNAManager.SocialType.AGGRESSIVE: 20,
 		SocialDNAManager.SocialType.DIPLOMATIC: 60,
@@ -32,28 +41,26 @@ var test_profiles = {
 		SocialDNAManager.SocialType.CHARMING: 90,
 		SocialDNAManager.SocialType.DIRECT: 5,
 		SocialDNAManager.SocialType.EMPATHETIC: 15
-	},
-	"Extreme Aggressive": {
-		SocialDNAManager.SocialType.AGGRESSIVE: 100,
-		SocialDNAManager.SocialType.DIPLOMATIC: 0,
-		SocialDNAManager.SocialType.CHARMING: 0,
-		SocialDNAManager.SocialType.DIRECT: 100,
-		SocialDNAManager.SocialType.EMPATHETIC: 0
-	},
-	"Extreme Diplomatic": {
-		SocialDNAManager.SocialType.AGGRESSIVE: 0,
-		SocialDNAManager.SocialType.DIPLOMATIC: 100,
-		SocialDNAManager.SocialType.CHARMING: 20,
-		SocialDNAManager.SocialType.DIRECT: 50,
-		SocialDNAManager.SocialType.EMPATHETIC: 100
 	}
 }
 
-var current_profile_name = "Default (Phase 1)"
+var current_profile_name = "Phase 2 Starting Profile"
+var is_phase2_mode = true
 
 func _ready():
+	# Ensure SocialDNAManager is available to Dialogue Manager
+	if not DialogueManager.game_states.has(SocialDNAManager):
+		DialogueManager.game_states.append(SocialDNAManager)
+	
+	# Apply default Phase 2 profile
+	apply_social_dna_profile(current_profile_name)
+	
 	setup_profile_dropdown()
-	update_player_stats_display()
+	setup_phase_toggle()
+	update_all_displays()
+	
+	# Connect to Social DNA changes for live updates
+	SocialDNAManager.social_dna_changed.connect(_on_social_dna_changed)
 	
 	# Connect to dialogue manager signals for debugging
 	DialogueManager.dialogue_started.connect(_on_dialogue_started)
@@ -68,14 +75,41 @@ func setup_profile_dropdown():
 		profile_dropdown.add_item(profile_name)
 	
 	# Set default selection
-	profile_dropdown.selected = 0
+	var default_index = test_profiles.keys().find(current_profile_name)
+	profile_dropdown.selected = default_index if default_index >= 0 else 0
 	
 	# Connect selection signal
 	profile_dropdown.item_selected.connect(_on_profile_selected)
 
+func setup_phase_toggle():
+	phase_toggle_button.text = "Switch to Phase 1 Mode"
+	phase_toggle_button.pressed.connect(_on_phase_toggle_pressed)
+	
+	# Set all NPCs to Phase 2 mode initially
+	set_npc_dialogue_mode(true)
+
 func _on_profile_selected(index: int):
 	var profile_name = profile_dropdown.get_item_text(index)
 	apply_social_dna_profile(profile_name)
+
+func _on_phase_toggle_pressed():
+	is_phase2_mode = !is_phase2_mode
+	
+	if is_phase2_mode:
+		phase_toggle_button.text = "Switch to Phase 1 Mode"
+		print("\n=== Switched to Phase 2 Mode (Progressive Dialogue) ===")
+	else:
+		phase_toggle_button.text = "Switch to Phase 2 Mode"  
+		print("\n=== Switched to Phase 1 Mode (Simple Dialogue) ===")
+	
+	set_npc_dialogue_mode(is_phase2_mode)
+	update_all_displays()
+
+func set_npc_dialogue_mode(use_progressive: bool):
+	# Update all NPCs to use the selected dialogue mode
+	for child in get_children():
+		if child is SocialDialogueNPC:
+			child.use_progressive_dialogue = use_progressive
 
 func apply_social_dna_profile(profile_name: String):
 	if not test_profiles.has(profile_name):
@@ -87,11 +121,12 @@ func apply_social_dna_profile(profile_name: String):
 	
 	# Apply new profile
 	SocialDNAManager.player_social_dna = test_profiles[profile_name].duplicate()
+	SocialDNAManager._calculate_total_social_power()
 	
-	# Update display
-	update_player_stats_display()
+	# Update displays
+	update_all_displays()
 	
-	# Recalculate NPC compatibility
+	# Manually update NPC compatibility for immediate feedback
 	for child in get_children():
 		if child is SocialDialogueNPC:
 			child.update_compatibility()
@@ -103,13 +138,24 @@ func apply_social_dna_profile(profile_name: String):
 	print("  Authority: %.2f (%s)" % [auth_compat, SocialDNAManager.get_compatibility_description(auth_compat)])
 	print("  Intellectual: %.2f (%s)" % [intel_compat, SocialDNAManager.get_compatibility_description(intel_compat)])
 
+func update_all_displays():
+	update_player_stats_display()
+	update_progression_display()
+
 func update_player_stats_display():
-	var stats_text = "Current Profile: %s\n\n" % current_profile_name
+	var stats_text = "Current Profile: %s\n" % current_profile_name
+	stats_text += "Mode: %s\n\n" % ("Phase 2 (Progressive)" if is_phase2_mode else "Phase 1 (Simple)")
 	stats_text += "Player Social DNA:\n"
+	
+	# Show both raw values and percentages
+	var percentages = SocialDNAManager.get_social_percentages()
 	for social_type in SocialDNAManager.player_social_dna:
 		var type_name = SocialDNAManager.get_social_type_name(social_type)
 		var value = SocialDNAManager.player_social_dna[social_type]
-		stats_text += "  %s: %d\n" % [type_name, value]
+		var percentage = percentages[social_type]
+		stats_text += "  %s: %d (%.1f%%)\n" % [type_name, value, percentage]
+	
+	stats_text += "\nTotal Social Power: %d\n" % SocialDNAManager.total_social_power
 	
 	# Add compatibility info
 	stats_text += "\nNPC Compatibility:\n"
@@ -120,6 +166,35 @@ func update_player_stats_display():
 	stats_text += "  Intellectual: %.2f (%s)\n" % [intellectual_compat, SocialDNAManager.get_compatibility_description(intellectual_compat)]
 	
 	player_stats_label.text = stats_text
+
+func update_progression_display():
+	if is_phase2_mode:
+		var dominant_traits = SocialDNAManager.get_dominant_traits(2)
+		var progression_text = "Dominant Traits:\n"
+		for i in range(dominant_traits.size()):
+			var trait_data = dominant_traits[i]
+			progression_text += "  %d. %s (%d)\n" % [i+1, trait_data["name"], trait_data["value"]]
+		
+		progression_text += "\nClick NPCs to shape your Social DNA!"
+		progression_label.text = progression_text
+	else:
+		progression_label.text = "Phase 1 Mode: Static Social DNA\nClick NPCs to test compatibility"
+
+func _on_social_dna_changed(old_profile: Dictionary, new_profile: Dictionary):
+	print("\n=== Social DNA Progression Detected ===")
+	
+	# Show what changed
+	for social_type in new_profile:
+		var old_val = old_profile[social_type]
+		var new_val = new_profile[social_type]
+		if new_val != old_val:
+			var type_name = SocialDNAManager.get_social_type_name(social_type)
+			print("  %s: %d → %d (+%d)" % [type_name, old_val, new_val, new_val - old_val])
+	
+	# Update displays with new values
+	update_all_displays()
+	
+	print("New Social Power Total: %d" % SocialDNAManager.total_social_power)
 
 func _on_dialogue_started(resource):
 	print("Dialogue started with resource: ", resource)

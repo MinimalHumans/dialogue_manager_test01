@@ -21,20 +21,28 @@ offset_bottom = 10.0
 custom_minimum_size = Vector2(200, 30)
 layout_mode = 2
 
+[node name="PhaseToggleButton" type="Button" parent="CanvasLayer/VBoxContainer"]
+layout_mode = 2
+text = "Switch to Phase 1 Mode"
+
 [node name="PlayerStatsLabel" type="Label" parent="CanvasLayer/VBoxContainer"]
 layout_mode = 2
 text = "Player Social DNA - Loading..."
+
+[node name="ProgressionLabel" type="Label" parent="CanvasLayer/VBoxContainer"]
+layout_mode = 2
+text = "Phase 2 Progression info will appear here."
 
 [node name="InstructionsLabel" type="Label" parent="CanvasLayer/VBoxContainer"]
 layout_mode = 2
 text = "Click on NPCs to start dialogue. Compatibility affects dialogue selection."
 
 [node name="CommanderSteel" parent="." instance=ExtResource("1_wg5c1")]
-position = Vector2(710, 142)
+position = Vector2(710, 237)
 npc_name = "Commander Steel"
 
 [node name="Dr_Vega" parent="." instance=ExtResource("1_wg5c1")]
 modulate = Color(0.239902, 0.526243, 0.458502, 1)
-position = Vector2(910, 138)
+position = Vector2(910, 233)
 npc_name = "Doctor Vega"
 archetype = 1

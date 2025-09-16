@@ -15,7 +15,7 @@ enum NPCArchetype {
 	INTELLECTUAL
 }
 
-# Hard-coded player Social DNA for Phase 1
+# Starting player Social DNA for Phase 2 (lower values to see progression)
 var player_social_dna = {
 	SocialType.AGGRESSIVE: 20,
 	SocialType.DIPLOMATIC: 60,
@@ -23,6 +23,12 @@ var player_social_dna = {
 	SocialType.DIRECT: 80,
 	SocialType.EMPATHETIC: 30
 }
+
+# Track total social power (for progression display)
+var total_social_power: int = 0
+
+# Global variable to track the last choice made in dialogue
+var last_dialogue_choice: int = -1
 
 # NPC compatibility matrices
 var npc_compatibility = {
@@ -42,6 +48,60 @@ var npc_compatibility = {
 	}
 }
 
+# Signal for when Social DNA changes
+signal social_dna_changed(old_profile: Dictionary, new_profile: Dictionary)
+
+func _ready():
+	_calculate_total_social_power()
+
+func _calculate_total_social_power():
+	total_social_power = 0
+	for social_type in player_social_dna:
+		total_social_power += player_social_dna[social_type]
+
+# Process a player dialogue choice and update Social DNA
+func process_dialogue_choice(choice_type: SocialType):
+	print("Processing choice: %s" % get_social_type_name(choice_type))
+	
+	# Store old profile for comparison
+	var old_profile = player_social_dna.duplicate()
+	
+	# Add +1 to all categories (general social development)
+	for social_type in player_social_dna:
+		player_social_dna[social_type] += 1
+	
+	# Add +2 bonus to the specific choice category
+	player_social_dna[choice_type] += 2
+	
+	# Recalculate total power
+	var old_total = total_social_power
+	_calculate_total_social_power()
+	
+	print("Social DNA updated: %s +3, others +1 (Total: %d → %d)" % [
+		get_social_type_name(choice_type), 
+		old_total, 
+		total_social_power
+	])
+	
+	# Emit signal for UI updates
+	social_dna_changed.emit(old_profile, player_social_dna.duplicate())
+
+# Process the last dialogue choice (called after dialogue ends)
+func process_last_choice():
+	if last_dialogue_choice >= 0:
+		print("Processing last dialogue choice: %d" % last_dialogue_choice)
+		var social_type = last_dialogue_choice as SocialType
+		process_dialogue_choice(social_type)
+		last_dialogue_choice = -1  # Reset
+	else:
+		print("No dialogue choice to process")
+
+# Legacy function for backward compatibility (in case dialogue still calls it)
+func process_choice(social_type_value: int):
+	print("Legacy process_choice called with value: %d" % social_type_value)
+	var social_type = social_type_value as SocialType
+	process_dialogue_choice(social_type)
+
 # Calculate compatibility between player and NPC
 func calculate_compatibility(npc_archetype: NPCArchetype) -> float:
 	var total_compatibility = 0.0
@@ -55,6 +115,26 @@ func calculate_compatibility(npc_archetype: NPCArchetype) -> float:
 		total_compatibility += (player_strength / 100.0) * npc_preference
 	
 	return total_compatibility
+
+# Get the player's dominant social traits (for personality analysis)
+func get_dominant_traits(top_n: int = 2) -> Array:
+	var sorted_traits = []
+	for social_type in player_social_dna:
+		sorted_traits.append({
+			"type": social_type,
+			"value": player_social_dna[social_type],
+			"name": get_social_type_name(social_type)
+		})
+	
+	sorted_traits.sort_custom(func(a, b): return a.value > b.value)
+	return sorted_traits.slice(0, top_n)
+
+# Get player social percentages (for progression display)
+func get_social_percentages() -> Dictionary:
+	var percentages = {}
+	for social_type in player_social_dna:
+		percentages[social_type] = (player_social_dna[social_type] * 100.0) / total_social_power if total_social_power > 0 else 0
+	return percentages
 
 # Get compatibility description for UI
 func get_compatibility_description(compatibility: float) -> String:
