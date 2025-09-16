@@ -17,6 +17,10 @@ offset_top = 10.0
 offset_right = 10.0
 offset_bottom = 10.0
 
+[node name="ProfileDropdown" type="OptionButton" parent="CanvasLayer/VBoxContainer"]
+custom_minimum_size = Vector2(200, 30)
+layout_mode = 2
+
 [node name="PlayerStatsLabel" type="Label" parent="CanvasLayer/VBoxContainer"]
 layout_mode = 2
 text = "Player Social DNA - Loading..."
@@ -32,5 +36,5 @@ npc_name = "Commander Steel"
 [node name="Dr_Vega" parent="." instance=ExtResource("1_wg5c1")]
 modulate = Color(0.239902, 0.526243, 0.458502, 1)
 position = Vector2(910, 138)
-npc_name = null
+npc_name = "Doctor Vega"
 archetype = 1
