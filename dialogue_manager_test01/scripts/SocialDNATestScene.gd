@@ -4,6 +4,8 @@ extends Node2D
 @onready var profile_dropdown = $CanvasLayer/VBoxContainer/ProfileDropdown
 @onready var phase_toggle_button = $CanvasLayer/VBoxContainer/PhaseToggleButton
 @onready var progression_label = $CanvasLayer/VBoxContainer/ProgressionLabel
+@onready var instructions_label = $CanvasLayer/VBoxContainer/InstructionsLabel
+@onready var relationships_label = $CanvasLayer/VBoxContainer/RelationshipsLabel
 
 # Define test profiles
 var test_profiles = {
@@ -141,6 +143,57 @@ func apply_social_dna_profile(profile_name: String):
 func update_all_displays():
 	update_player_stats_display()
 	update_progression_display()
+	update_relationships_display()
+	update_instructions_display()
+
+func update_instructions_display():
+	var instructions_text = ""
+	
+	if is_phase2_mode:
+		instructions_text = """Phase 2 & 3 Mode Instructions:
+• Left-click NPCs: Simple progressive dialogue (Social DNA tracked)
+• Right-click NPCs: Topic-based conversations (3-5 turns, relationship building)
+• Build relationships to unlock advanced topics
+• Multiple conversation types available!"""
+	else:
+		instructions_text = """Phase 1 Mode Instructions:
+• Left-click NPCs: Simple dialogue testing (compatibility-based responses)
+• Use profile dropdown to test different Social DNA builds
+• Right-click still available but uses static personalities"""
+	
+	if instructions_label:
+		instructions_label.text = instructions_text
+
+func update_relationships_display():
+	if not relationships_label:
+		return
+		
+	var relationships_text = "NPC Relationships:\n"
+	
+	# Get relationship info for each NPC
+	for child in get_children():
+		if child is SocialDialogueNPC:
+			var npc = child as SocialDialogueNPC
+			var relationship = npc.conversation_manager.relationship_tracker.get_relationship(npc.npc_name)
+			var trust_visual = npc.conversation_manager.relationship_tracker.get_trust_visual(relationship.trust_level)
+			var trust_name = npc.conversation_manager.relationship_tracker.get_trust_level_name(relationship.trust_level)
+			
+			relationships_text += "  %s: %s %s (%d interactions)\n" % [
+				npc.npc_name,
+				trust_visual,
+				trust_name,
+				relationship.interactions_count
+			]
+			
+			# Show discussed topics
+			if relationship.topics_discussed.size() > 0:
+				relationships_text += "    Topics: %s\n" % ", ".join(relationship.topics_discussed)
+			
+			# Show failed topics that can be retried
+			if relationship.failed_topics.size() > 0:
+				relationships_text += "    Failed (retry available): %s\n" % ", ".join(relationship.failed_topics)
+	
+	relationships_label.text = relationships_text
 
 func update_player_stats_display():
 	var stats_text = "Current Profile: %s\n" % current_profile_name
@@ -170,15 +223,16 @@ func update_player_stats_display():
 func update_progression_display():
 	if is_phase2_mode:
 		var dominant_traits = SocialDNAManager.get_dominant_traits(2)
-		var progression_text = "Dominant Traits:\n"
+		var progression_text = "Social DNA Progression:\n"
+		progression_text += "Dominant Traits:\n"
 		for i in range(dominant_traits.size()):
 			var trait_data = dominant_traits[i]
 			progression_text += "  %d. %s (%d)\n" % [i+1, trait_data["name"], trait_data["value"]]
 		
-		progression_text += "\nClick NPCs to shape your Social DNA!"
+		progression_text += "\nPhase 3 Features:\n• Multi-turn conversations\n• Relationship building\n• Information rewards\n• Topic unlocking"
 		progression_label.text = progression_text
 	else:
-		progression_label.text = "Phase 1 Mode: Static Social DNA\nClick NPCs to test compatibility"
+		progression_label.text = "Phase 1 Mode: Static Social DNA\nClick NPCs to test compatibility\nPhase 3 features disabled"
 
 func _on_social_dna_changed(old_profile: Dictionary, new_profile: Dictionary):
 	print("\n=== Social DNA Progression Detected ===")
@@ -192,7 +246,7 @@ func _on_social_dna_changed(old_profile: Dictionary, new_profile: Dictionary):
 			print("  %s: %d → %d (+%d)" % [type_name, old_val, new_val, new_val - old_val])
 	
 	# Update displays with new values
-	update_all_displays()
+	update_all_displays()  # This now includes relationship display
 	
 	print("New Social Power Total: %d" % SocialDNAManager.total_social_power)
 

@@ -30,6 +30,13 @@ var total_social_power: int = 0
 # Global variable to track the last choice made in dialogue
 var last_dialogue_choice: int = -1
 
+# Phase 3 conversation system variables
+var advance_turn: bool = false
+var player_choice: int = -1
+
+# Conversation manager instance (will be set by conversation system)
+var conversation_manager: ConversationManager = null
+
 # NPC compatibility matrices
 var npc_compatibility = {
 	NPCArchetype.AUTHORITY: {
