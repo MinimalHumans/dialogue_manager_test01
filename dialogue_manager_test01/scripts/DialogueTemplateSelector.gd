@@ -155,6 +155,7 @@ func create_progressive_dialogue_resource(npc_name: String, archetype: SocialDNA
 	]
 	
 	print("Generated progressive dialogue for %s using ONLY variables - no function calls" % npc_name)
+	# Use DialogueManager autoload directly (FIXED)
 	return DialogueManager.create_resource_from_text(dialogue_text)
 
 # Generate a simple dialogue resource for Phase 1 compatibility testing
@@ -168,7 +169,7 @@ func create_dialogue_resource(npc_name: String, archetype: SocialDNAManager.NPCA
 => END
 """ % [npc_name, dialogue_line]
 	
-	# Use Dialogue Manager's built-in method to create resource from text
+	# Use DialogueManager autoload directly (FIXED)
 	return DialogueManager.create_resource_from_text(dialogue_text)
 
 # Get NPC reaction based on archetype and player choice compatibility

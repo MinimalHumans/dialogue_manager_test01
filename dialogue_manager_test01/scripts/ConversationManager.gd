@@ -24,16 +24,9 @@ var conversation_topics: ConversationTopics
 var advance_turn: bool = false
 var player_choice: int = -1
 
-# Reference to the actual DialogueManager plugin singleton
-var dialogue_manager_singleton
-
 func _init():
 	relationship_tracker = RelationshipTracker.new()
 	conversation_topics = ConversationTopics.new()
-	# Get the actual DialogueManager plugin singleton
-	dialogue_manager_singleton = Engine.get_singleton("DialogueManager")
-	if not dialogue_manager_singleton:
-		print("WARNING: Could not get DialogueManager plugin singleton in ConversationManager")
 
 # MISSING METHODS - These are called by SocialDNAManager bridge
 func set_advance_turn():
@@ -130,11 +123,12 @@ func _generate_turn_dialogue() -> DialogueResource:
 	print("Dialogue length: %d characters" % dialogue_text.length())
 	print("========================================")
 	
-	# Use the plugin singleton to create the resource
-	if dialogue_manager_singleton and dialogue_manager_singleton.has_method("create_resource_from_text"):
-		return dialogue_manager_singleton.create_resource_from_text(dialogue_text)
+	# Use DialogueManager singleton correctly (FIXED)
+	var dialogue_manager = Engine.get_singleton("DialogueManager")
+	if dialogue_manager and dialogue_manager.has_method("create_resource_from_text"):
+		return dialogue_manager.create_resource_from_text(dialogue_text)
 	else:
-		print("ERROR: Cannot create dialogue resource - DialogueManager singleton not available or method missing")
+		print("ERROR: DialogueManager singleton not available or method missing")
 		return null
 
 # Generate Turn 1: NPC Opening

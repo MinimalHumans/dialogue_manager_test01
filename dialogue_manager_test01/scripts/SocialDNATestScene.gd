@@ -7,7 +7,7 @@ extends Node2D
 @onready var instructions_label = $CanvasLayer/VBoxContainer/InstructionsLabel
 @onready var relationships_label = $CanvasLayer/VBoxContainer/RelationshipsLabel
 
-# Track the actual DialogueManager plugin singleton
+# Track the actual DialogueManager singleton
 var dialogue_manager_singleton
 
 # Define test profiles
@@ -53,7 +53,7 @@ var current_profile_name = "Phase 2 Starting Profile"
 var is_phase2_mode = true
 
 func _ready():
-	# Get the actual DialogueManager plugin singleton
+	# Setup DialogueManager connections (FIXED - use autoload directly)
 	_setup_dialogue_manager_connection()
 	
 	# Apply default Phase 2 profile
@@ -66,25 +66,34 @@ func _ready():
 	# Connect to Social DNA changes for live updates
 	SocialDNAManager.social_dna_changed.connect(_on_social_dna_changed)
 	
-	# Connect to dialogue manager signals for debugging
-	if dialogue_manager_singleton:
-		if dialogue_manager_singleton.has_signal("dialogue_started"):
-			dialogue_manager_singleton.dialogue_started.connect(_on_dialogue_started)
-		if dialogue_manager_singleton.has_signal("dialogue_ended"):
-			dialogue_manager_singleton.dialogue_ended.connect(_on_dialogue_ended)
+	# Connect to dialogue manager signals for debugging (FIXED)
+	_setup_dialogue_manager_connection()
 
 func _setup_dialogue_manager_connection():
-	# Get the actual DialogueManager singleton from the plugin
+	# Get DialogueManager singleton correctly (FIXED)
 	dialogue_manager_singleton = Engine.get_singleton("DialogueManager")
 	if dialogue_manager_singleton:
-		print("Successfully connected to DialogueManager plugin singleton")
+		print("Successfully connected to DialogueManager singleton")
+		
 		# Ensure SocialDNAManager is available to Dialogue Manager
-		var game_states_array = dialogue_manager_singleton.get("game_states")
-		if game_states_array and not game_states_array.has(SocialDNAManager):
-			game_states_array.append(SocialDNAManager)
-			print("Added SocialDNAManager to DialogueManager game_states")
+		if dialogue_manager_singleton.has_method("get"):
+			var game_states_array = dialogue_manager_singleton.get("game_states")
+			if game_states_array and not game_states_array.has(SocialDNAManager):
+				game_states_array.append(SocialDNAManager)
+				print("Added SocialDNAManager to DialogueManager game_states")
+		
+		# Connect to dialogue signals
+		if dialogue_manager_singleton.has_signal("dialogue_started"):
+			if not dialogue_manager_singleton.dialogue_started.is_connected(_on_dialogue_started):
+				dialogue_manager_singleton.dialogue_started.connect(_on_dialogue_started)
+				print("Connected to DialogueManager.dialogue_started signal")
+		
+		if dialogue_manager_singleton.has_signal("dialogue_ended"):
+			if not dialogue_manager_singleton.dialogue_ended.is_connected(_on_dialogue_ended):
+				dialogue_manager_singleton.dialogue_ended.connect(_on_dialogue_ended)
+				print("Connected to DialogueManager.dialogue_ended signal")
 	else:
-		print("Warning: Could not get DialogueManager plugin singleton")
+		print("Warning: Could not get DialogueManager singleton")
 
 func setup_profile_dropdown():
 	# Clear existing items
