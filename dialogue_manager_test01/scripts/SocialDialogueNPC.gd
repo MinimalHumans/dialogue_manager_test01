@@ -16,6 +16,9 @@ var info_label: Label
 var topic_selection_ui: Control
 var topic_ui_active: bool = false  # Track if topic UI is active
 
+# Track dialogue manager singleton
+var dialogue_manager_singleton
+
 func _ready():
 	template_selector = DialogueTemplateSelector.new()
 	conversation_manager = ConversationManager.new()
@@ -36,9 +39,8 @@ func _ready():
 	# Connect to Social DNA changes for real-time compatibility updates
 	SocialDNAManager.social_dna_changed.connect(_on_social_dna_changed)
 	
-	# Connect to dialogue events to track player choices
-	if not DialogueManager.dialogue_ended.is_connected(_on_dialogue_ended):
-		DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	# Get the actual DialogueManager singleton and connect to its signals
+	_setup_dialogue_manager_connection()
 	
 	# Calculate initial compatibility
 	compatibility = SocialDNAManager.calculate_compatibility(archetype)
@@ -52,6 +54,20 @@ func _ready():
 		compatibility,
 		SocialDNAManager.get_compatibility_description(compatibility)
 	])
+
+func _setup_dialogue_manager_connection():
+	# Get the actual DialogueManager singleton from the plugin
+	dialogue_manager_singleton = Engine.get_singleton("DialogueManager")
+	if dialogue_manager_singleton:
+		# Connect to the plugin's dialogue_ended signal
+		if dialogue_manager_singleton.has_signal("dialogue_ended"):
+			if not dialogue_manager_singleton.dialogue_ended.is_connected(_on_dialogue_ended):
+				dialogue_manager_singleton.dialogue_ended.connect(_on_dialogue_ended)
+				print("Connected to DialogueManager.dialogue_ended signal")
+		else:
+			print("DialogueManager singleton doesn't have dialogue_ended signal")
+	else:
+		print("Could not get DialogueManager singleton")
 
 func create_info_display():
 	# Create a label to show NPC info with relationship status
@@ -106,8 +122,12 @@ func start_dialogue():
 	else:
 		current_dialogue_resource = template_selector.create_dialogue_resource(npc_name, archetype, compatibility)
 	
-	# Show dialogue using Dialogue Manager
-	DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+	# Show dialogue using the DialogueManager singleton
+	if dialogue_manager_singleton:
+		dialogue_manager_singleton.show_dialogue_balloon(current_dialogue_resource)
+	else:
+		# Fallback if singleton not available
+		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
 	
 	# Update info display
 	update_info_label()
@@ -244,14 +264,21 @@ func _on_topic_button_pressed(button: Button):
 	
 	# Also add conversation manager to DialogueManager game_states for direct access
 	# Clear any previous conversation managers first
-	for i in range(DialogueManager.game_states.size() - 1, -1, -1):
-		var state = DialogueManager.game_states[i]
+	var game_states_array = []
+	if dialogue_manager_singleton and dialogue_manager_singleton.has_method("get") and dialogue_manager_singleton.get("game_states"):
+		game_states_array = dialogue_manager_singleton.get("game_states")
+	elif DialogueManager.has_method("get") and DialogueManager.get("game_states"):
+		game_states_array = DialogueManager.get("game_states")
+	
+	# Remove old conversation managers
+	for i in range(game_states_array.size() - 1, -1, -1):
+		var state = game_states_array[i]
 		if state is ConversationManager:
-			DialogueManager.game_states.remove_at(i)
+			game_states_array.remove_at(i)
 			print("Removed old conversation manager from game_states")
 	
 	# Add the current conversation manager
-	DialogueManager.game_states.append(conversation_manager)
+	game_states_array.append(conversation_manager)
 	print("Added current conversation_manager to DialogueManager game_states")
 	print("Set active conversation_manager in SocialDNAManager")
 	
@@ -259,27 +286,10 @@ func _on_topic_button_pressed(button: Button):
 	var dialogue_resource = conversation_manager.select_topic(topic_id)
 	if dialogue_resource:
 		current_dialogue_resource = dialogue_resource
-		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
-
-
-# Keep the old function for compatibility
-func _on_topic_selected(topic_id: String):
-	print("Topic selected: %s" % topic_id)
-	
-	# Remove topic selection UI and re-enable Area2D input
-	_close_topic_ui()
-	
-	# Make this conversation manager instance available to Dialogue Manager
-	# so the dialogue can access its variables
-	if not DialogueManager.game_states.has(conversation_manager):
-		DialogueManager.game_states.append(conversation_manager)
-		print("Added conversation_manager to DialogueManager game_states")
-	
-	# Start the conversation with selected topic
-	var dialogue_resource = conversation_manager.select_topic(topic_id)
-	if dialogue_resource:
-		current_dialogue_resource = dialogue_resource
-		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+		if dialogue_manager_singleton:
+			dialogue_manager_singleton.show_dialogue_balloon(current_dialogue_resource)
+		else:
+			DialogueManager.show_dialogue_balloon(current_dialogue_resource)
 
 func _on_topic_selection_cancelled():
 	print("Topic selection cancelled - Cancel button was clicked")
@@ -338,7 +348,10 @@ func _on_dialogue_ended(resource):
 				current_dialogue_resource = next_dialogue
 				# Small delay before showing next turn
 				await get_tree().create_timer(0.5).timeout
-				DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+				if dialogue_manager_singleton:
+					dialogue_manager_singleton.show_dialogue_balloon(current_dialogue_resource)
+				else:
+					DialogueManager.show_dialogue_balloon(current_dialogue_resource)
 			else:
 				print("No more dialogue - conversation completed or error occurred")
 				# Update relationship display after conversation ends

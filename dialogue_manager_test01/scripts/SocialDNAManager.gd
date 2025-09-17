@@ -70,18 +70,25 @@ func _calculate_total_social_power():
 # These methods delegate to the active conversation manager
 
 func set_advance_turn():
+	print("SocialDNAManager.set_advance_turn() called")
 	if conversation_manager:
 		conversation_manager.set_advance_turn()
-		print("SocialDNAManager.set_advance_turn() -> conversation_manager.set_advance_turn()")
+		print("  -> Delegated to conversation_manager.set_advance_turn()")
 	else:
-		print("ERROR: No conversation_manager set in SocialDNAManager")
+		print("  ERROR: No conversation_manager set in SocialDNAManager")
+		# Fallback for Phase 2 compatibility
+		advance_turn = true
 
 func set_player_choice_and_advance(choice: int):
+	print("SocialDNAManager.set_player_choice_and_advance(%d) called" % choice)
 	if conversation_manager:
 		conversation_manager.set_player_choice_and_advance(choice)
-		print("SocialDNAManager.set_player_choice_and_advance(%d) -> conversation_manager" % choice)
+		print("  -> Delegated to conversation_manager")
 	else:
-		print("ERROR: No conversation_manager set in SocialDNAManager")
+		print("  ERROR: No conversation_manager set - using fallback")
+		# Fallback for Phase 2 compatibility
+		last_dialogue_choice = choice
+		advance_turn = true
 
 # Set the active conversation manager (called by NPCs)
 func set_active_conversation_manager(manager: ConversationManager):

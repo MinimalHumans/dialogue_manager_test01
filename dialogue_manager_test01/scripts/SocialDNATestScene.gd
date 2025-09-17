@@ -7,6 +7,9 @@ extends Node2D
 @onready var instructions_label = $CanvasLayer/VBoxContainer/InstructionsLabel
 @onready var relationships_label = $CanvasLayer/VBoxContainer/RelationshipsLabel
 
+# Track the actual DialogueManager plugin singleton
+var dialogue_manager_singleton
+
 # Define test profiles
 var test_profiles = {
 	"Phase 2 Starting Profile": {
@@ -50,9 +53,8 @@ var current_profile_name = "Phase 2 Starting Profile"
 var is_phase2_mode = true
 
 func _ready():
-	# Ensure SocialDNAManager is available to Dialogue Manager
-	if not DialogueManager.game_states.has(SocialDNAManager):
-		DialogueManager.game_states.append(SocialDNAManager)
+	# Get the actual DialogueManager plugin singleton
+	_setup_dialogue_manager_connection()
 	
 	# Apply default Phase 2 profile
 	apply_social_dna_profile(current_profile_name)
@@ -65,8 +67,24 @@ func _ready():
 	SocialDNAManager.social_dna_changed.connect(_on_social_dna_changed)
 	
 	# Connect to dialogue manager signals for debugging
-	DialogueManager.dialogue_started.connect(_on_dialogue_started)
-	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	if dialogue_manager_singleton:
+		if dialogue_manager_singleton.has_signal("dialogue_started"):
+			dialogue_manager_singleton.dialogue_started.connect(_on_dialogue_started)
+		if dialogue_manager_singleton.has_signal("dialogue_ended"):
+			dialogue_manager_singleton.dialogue_ended.connect(_on_dialogue_ended)
+
+func _setup_dialogue_manager_connection():
+	# Get the actual DialogueManager singleton from the plugin
+	dialogue_manager_singleton = Engine.get_singleton("DialogueManager")
+	if dialogue_manager_singleton:
+		print("Successfully connected to DialogueManager plugin singleton")
+		# Ensure SocialDNAManager is available to Dialogue Manager
+		var game_states_array = dialogue_manager_singleton.get("game_states")
+		if game_states_array and not game_states_array.has(SocialDNAManager):
+			game_states_array.append(SocialDNAManager)
+			print("Added SocialDNAManager to DialogueManager game_states")
+	else:
+		print("Warning: Could not get DialogueManager plugin singleton")
 
 func setup_profile_dropdown():
 	# Clear existing items
