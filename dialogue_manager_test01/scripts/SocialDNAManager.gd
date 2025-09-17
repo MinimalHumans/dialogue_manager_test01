@@ -66,6 +66,33 @@ func _calculate_total_social_power():
 	for social_type in player_social_dna:
 		total_social_power += player_social_dna[social_type]
 
+# CONVERSATION MANAGER WRAPPER METHODS (for Dialogue Manager)
+# These methods delegate to the active conversation manager
+
+func set_advance_turn():
+	if conversation_manager:
+		conversation_manager.set_advance_turn()
+		print("SocialDNAManager.set_advance_turn() -> conversation_manager.set_advance_turn()")
+	else:
+		print("ERROR: No conversation_manager set in SocialDNAManager")
+
+func set_player_choice_and_advance(choice: int):
+	if conversation_manager:
+		conversation_manager.set_player_choice_and_advance(choice)
+		print("SocialDNAManager.set_player_choice_and_advance(%d) -> conversation_manager" % choice)
+	else:
+		print("ERROR: No conversation_manager set in SocialDNAManager")
+
+# Set the active conversation manager (called by NPCs)
+func set_active_conversation_manager(manager: ConversationManager):
+	conversation_manager = manager
+	print("SocialDNAManager: Active conversation manager set")
+
+# Clear the active conversation manager
+func clear_active_conversation_manager():
+	conversation_manager = null
+	print("SocialDNAManager: Active conversation manager cleared")
+
 # Process a player dialogue choice and update Social DNA
 func process_dialogue_choice(choice_type: SocialType):
 	print("Processing choice: %s" % get_social_type_name(choice_type))

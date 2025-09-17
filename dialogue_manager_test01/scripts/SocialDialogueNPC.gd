@@ -238,24 +238,29 @@ func _on_topic_button_pressed(button: Button):
 	# Remove topic selection UI and re-enable Area2D input
 	_close_topic_ui()
 	
-	# Make this conversation manager instance available to Dialogue Manager
-	# Clear any previous conversation managers and add the current one
+	# Set this conversation manager as the active one in SocialDNAManager
+	# This allows the dialogue system to call methods on it through SocialDNAManager
+	SocialDNAManager.set_active_conversation_manager(conversation_manager)
+	
+	# Also add conversation manager to DialogueManager game_states for direct access
+	# Clear any previous conversation managers first
 	for i in range(DialogueManager.game_states.size() - 1, -1, -1):
 		var state = DialogueManager.game_states[i]
-		if state is ConversationManager or (typeof(state) == TYPE_DICTIONARY and state.has("conversation_manager")):
+		if state is ConversationManager:
 			DialogueManager.game_states.remove_at(i)
 			print("Removed old conversation manager from game_states")
 	
 	# Add the current conversation manager
 	DialogueManager.game_states.append(conversation_manager)
 	print("Added current conversation_manager to DialogueManager game_states")
-	print("DialogueManager.game_states now has %d items" % DialogueManager.game_states.size())
+	print("Set active conversation_manager in SocialDNAManager")
 	
 	# Start the conversation with selected topic
 	var dialogue_resource = conversation_manager.select_topic(topic_id)
 	if dialogue_resource:
 		current_dialogue_resource = dialogue_resource
 		DialogueManager.show_dialogue_balloon(current_dialogue_resource)
+
 
 # Keep the old function for compatibility
 func _on_topic_selected(topic_id: String):
@@ -298,6 +303,10 @@ func _on_conversation_started(topic: String):
 
 func _on_conversation_ended(outcome: String, rewards: Array):
 	print("Phase 3 conversation ended: %s (Rewards: %d)" % [outcome, rewards.size()])
+	
+	# Clear the active conversation manager when conversation ends
+	SocialDNAManager.clear_active_conversation_manager()
+	print("Cleared active conversation manager from SocialDNAManager")
 	
 	# Update relationship display
 	update_info_label()

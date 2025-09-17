@@ -134,7 +134,7 @@ func _generate_turn_1_dialogue(turn_data: Dictionary, relationship: Relationship
 ~ start
 %s: %s
 - Continue
-	do conversation_manager.set_advance_turn()
+	do SocialDNAManager.set_advance_turn()
 	=> END
 """ % [current_npc_name, opening_text]
 
@@ -152,11 +152,11 @@ func _generate_turn_2_dialogue(turn_data: Dictionary) -> String:
 		print("  - %s: %s (social_type: %d)" % [response.label, response.text, social_type])
 		dialogue_text += """
 - [%s] %s
-	do conversation_manager.set_player_choice_and_advance(%d)
+	do SocialDNAManager.set_player_choice_and_advance(%d)
 	=> END
 """ % [response.label, response.text, social_type]
 	
-	print("Turn 2 dialogue generated with method calls")
+	print("Turn 2 dialogue generated with SocialDNAManager method calls")
 	return dialogue_text
 
 # Generate Turn 3: NPC Reaction + Compatibility Check
@@ -209,7 +209,7 @@ func _generate_turn_3_dialogue(turn_data: Dictionary, relationship: Relationship
 %s: %s
 %s
 - Continue
-	do conversation_manager.set_advance_turn()
+	do SocialDNAManager.set_advance_turn()
 	=> END
 """ % [current_npc_name, reaction, info_reveal]
 
@@ -228,7 +228,7 @@ func _generate_turn_4_dialogue(turn_data: Dictionary) -> String:
 		var social_type = response.social_type as int
 		dialogue_text += """
 - [%s] %s
-	do conversation_manager.set_player_choice_and_advance(%d)
+	do SocialDNAManager.set_player_choice_and_advance(%d)
 	=> END
 """ % [response.label, response.text, social_type]
 	
@@ -336,17 +336,7 @@ func process_conversation_state():
 	
 	return null
 
-# Methods that can be called from dialogue mutations
-func set_advance_turn():
-	advance_turn = true
-	print("set_advance_turn() called - advance_turn is now true")
-
-func set_player_choice_and_advance(choice: int):
-	player_choice = choice
-	advance_turn = true
-	print("set_player_choice_and_advance(%d) called - player_choice: %d, advance_turn: true" % [choice, choice])
-
-# Handle player choice (called by dialogue system)
+# Handle player choice (called by dialogue system through SocialDNAManager bridge)
 func record_player_choice(choice_value: int):
 	var social_type = choice_value as SocialDNAManager.SocialType
 	social_choices_made.append(social_type)
